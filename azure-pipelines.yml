@@ -1,0 +1,177 @@
+trigger:
+  branches:
+    include:
+      - develop
+
+pool:
+  name: 'dva-agent'  # Self-hosted agent configurado localmente
+
+variables:
+  dockerRegistry: 'dyegoalbuquerque'
+  kubernetesNamespace: 'default'        
+  kubernetesClusterName: 'dva-cluster'   
+  kubernetesResourceGroup: 'dva-group'  
+
+steps:
+- task: DotNetCoreCLI@2
+  displayName: 'Restore .NET projects'
+  inputs:
+    command: 'restore'
+    projects: '**/*.csproj'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Build .NET projects'
+  inputs:
+    command: 'build'
+    projects: '**/*.csproj'
+    arguments: '--configuration Release'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Run unit tests'
+  inputs:
+    command: 'test'
+    projects: '**/*Tests/*.csproj'
+    arguments: '--configuration Release --logger trx'
+
+- task: Docker@2
+  displayName: 'Build and Push sales-api Docker image'
+  inputs:
+    containerRegistry: 'docker-hub'
+    repository: '$(dockerRegistry)/sales-api'
+    command: 'buildAndPush'
+    Dockerfile: 'src/SalesApi/Dockerfile'
+    tags: |
+      latest
+    buildContext: 'src/SalesApi'
+
+- task: Docker@2
+  displayName: 'Build and Push ocelot-gateway Docker image'
+  inputs:
+    containerRegistry: 'docker-hub'
+    repository: '$(dockerRegistry)/ocelot-gateway'
+    command: 'buildAndPush'
+    Dockerfile: 'src/Gateway/Dockerfile'
+    tags: |
+      latest
+    buildContext: 'src/Gateway'
+
+- task: AzureCLI@2
+  displayName: 'Azure CLI - Login and Get AKS Credentials'
+  inputs:
+    azureSubscription: 'dva-aks-connection'
+    scriptType: 'ps'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      az aks get-credentials --resource-group $(kubernetesResourceGroup) --name $(kubernetesClusterName) --overwrite-existing
+
+- task: Kubernetes@1
+  displayName: 'Deploy sales-api deployment to AKS'
+  inputs:
+    connectionType: 'Azure Resource Manager'
+    azureSubscriptionEndpoint: 'dva-aks-connection'
+    azureResourceGroup: '$(kubernetesResourceGroup)'
+    kubernetesCluster: '$(kubernetesClusterName)'
+    namespace: '$(kubernetesNamespace)'
+    command: apply
+    useConfigurationFile: true
+    configuration: 'k8s/sales-api-deployment.yaml'
+
+- task: Kubernetes@1
+  displayName: 'Deploy sales-api service to AKS'
+  inputs:
+    connectionType: 'Azure Resource Manager'
+    azureSubscriptionEndpoint: 'dva-aks-connection'
+    azureResourceGroup: '$(kubernetesResourceGroup)'
+    kubernetesCluster: '$(kubernetesClusterName)'
+    namespace: '$(kubernetesNamespace)'
+    command: apply
+    useConfigurationFile: true
+    configuration: 'k8s/sales-api-service.yaml'
+
+- task: AzureCLI@2
+  displayName: 'Restart sales-api Deployment'
+  inputs:
+    azureSubscription: 'dva-aks-connection'
+    scriptType: 'ps'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      kubectl rollout restart deployment sales-api -n $(kubernetesNamespace)
+
+- task: Kubernetes@1
+  displayName: 'Deploy ocelot-gateway deployment to AKS'
+  inputs:
+    connectionType: 'Azure Resource Manager'
+    azureSubscriptionEndpoint: 'dva-aks-connection'
+    azureResourceGroup: '$(kubernetesResourceGroup)'
+    kubernetesCluster: '$(kubernetesClusterName)'
+    namespace: '$(kubernetesNamespace)'
+    command: apply
+    useConfigurationFile: true
+    configuration: 'k8s/ocelot-deployment.yaml'
+
+- task: Kubernetes@1
+  displayName: 'Deploy ocelot-gateway service to AKS'
+  inputs:
+    connectionType: 'Azure Resource Manager'
+    azureSubscriptionEndpoint: 'dva-aks-connection'
+    azureResourceGroup: '$(kubernetesResourceGroup)'
+    kubernetesCluster: '$(kubernetesClusterName)'
+    namespace: '$(kubernetesNamespace)'
+    command: apply
+    useConfigurationFile: true
+    configuration: 'k8s/ocelot-service.yaml'
+
+- task: AzureCLI@2
+  displayName: 'Restart ocelot-gateway Deployment'
+  inputs:
+    azureSubscription: 'dva-aks-connection'
+    scriptType: 'ps'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      kubectl rollout restart deployment ocelot-gateway -n $(kubernetesNamespace)
+
+- task: Kubernetes@1
+  displayName: 'Deploy db PersistentVolumeClaim to AKS'
+  inputs:
+    connectionType: 'Azure Resource Manager'
+    azureSubscriptionEndpoint: 'dva-aks-connection'
+    azureResourceGroup: '$(kubernetesResourceGroup)'
+    kubernetesCluster: '$(kubernetesClusterName)'
+    namespace: '$(kubernetesNamespace)'
+    command: apply
+    useConfigurationFile: true
+    configuration: 'k8s/db-pvc.yaml'
+
+- task: Kubernetes@1
+  displayName: 'Deploy db Deployment to AKS'
+  inputs:
+    connectionType: 'Azure Resource Manager'
+    azureSubscriptionEndpoint: 'dva-aks-connection'
+    azureResourceGroup: '$(kubernetesResourceGroup)'
+    kubernetesCluster: '$(kubernetesClusterName)'
+    namespace: '$(kubernetesNamespace)'
+    command: apply
+    useConfigurationFile: true
+    configuration: 'k8s/db-deployment.yaml'
+
+- task: Kubernetes@1
+  displayName: 'Deploy db Service to AKS'
+  inputs:
+    connectionType: 'Azure Resource Manager'
+    azureSubscriptionEndpoint: 'dva-aks-connection'
+    azureResourceGroup: '$(kubernetesResourceGroup)'
+    kubernetesCluster: '$(kubernetesClusterName)'
+    namespace: '$(kubernetesNamespace)'
+    command: apply
+    useConfigurationFile: true
+    configuration: 'k8s/db-service.yaml'
+
+- task: AzureCLI@2
+  displayName: 'Restart db Deployment'
+  inputs:
+    azureSubscription: 'dva-aks-connection'
+    scriptType: 'ps'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      kubectl rollout restart deployment postgres-db -n $(kubernetesNamespace)
+

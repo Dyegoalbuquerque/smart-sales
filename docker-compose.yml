@@ -1,50 +1,57 @@
-version: '3.3'
+version: '3.9'  # use 3.9 para compatibilidade total com Compose V2
 
 services:
-  gateway:
-    image: ocelot-gateway
-    build:
-      context: .
-      dockerfile: src/Gateway/Dockerfile
-    container_name: ocelot-gateway
-    ports:
-      - "0.0.0.0:7777:7777"
-    environment:
-      - ASPNETCORE_URLS=http://+:7777
-    depends_on:
-      - sales-api
-    networks:
-      - evaluation-network
-
-  sales-api:
-    image: sales-api
-    build:
-      context: .
-      dockerfile: src/SalesApi/Dockerfile
-    container_name: sales-api
-    depends_on:
-      - db
-    ports:
-      - "8090:8090"
-    environment:
-      - ConnectionStrings__SalesApiDb=Host=db;Database=SalesApiDb;Username=postgres;Password=admin
-    networks:
-      - evaluation-network
-    tty: true
-
   db:
     image: postgres:latest
     container_name: db
     environment:
-      POSTGRES_DB: SalesApiDb
+      POSTGRES_DB: SalesApi
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: admin
+      POSTGRES_PASSWORD: postgres#2025@
     ports:
-      - "5432:5432"
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - evaluation-network
+
+  sales-api:
+    build:
+      context: .
+      dockerfile: src/SalesApi/Dockerfile
+      args:
+        IMAGE_TAG: ${IMAGE_TAG:-latest}  # tag dinâmica no pipeline
+    image: dyegoalbuquerque/sales-api:${IMAGE_TAG:-latest}  # tag da imagem a ser enviada ao Docker Hub
+    container_name: sales-api
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8090:8090"
+    environment:
+      - ConnectionStrings__SalesApiDb=Host=db;Database=SalesApi;Username=postgres;Password=postgres#2025@;Port=5432
+    networks:
+      - evaluation-network
+
+  gateway:
+    build:
+      context: .
+      dockerfile: src/Gateway/Dockerfile
+    image: dyegoalbuquerque/ocelot-gateway:${IMAGE_TAG:-latest}  # também pronto para push, se desejar
+    container_name: ocelot-gateway
+    depends_on:
+      sales-api:
+        condition: service_started
+    ports:
+      - "7777:7777"
+    environment:
+      - ASPNETCORE_URLS=http://+:7777
     networks:
       - evaluation-network
 
 networks:
   evaluation-network:
-    external: true
-  
+    driver: bridge

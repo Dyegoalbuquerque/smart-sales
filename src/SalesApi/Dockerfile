@@ -1,29 +1,39 @@
-# See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
-
-# This stage is used when running from VS in fast mode (Default for Debug configuration)
+# Base image for runtime
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 EXPOSE 8090
 
-# This stage is used to build the service project
+# Install PostgreSQL client (if needed)
+RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
+
+# Build stage
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["Directory.Packages.props", "."]
-COPY ["src/SalesApi.Presentation/SalesApi.Presentation.csproj", "src/SalesApi.Presentation/"]
-COPY ["src/SalesApi.Domain/SalesApi.Domain.csproj", "src/SalesApi.Domain/"]
-COPY ["src/SalesApi.Infrastructure/SalesApi.Infrastructure.csproj", "src/SalesApi.Infrastructure/"]
-RUN dotnet restore "./src/SalesApi.Presentation/SalesApi.Presentation.csproj"
-COPY . .
-WORKDIR "/src/src/SalesApi.Presentation"
-RUN dotnet build "./SalesApi.Presentation.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
-# This stage is used to publish the service project to be copied to the final stage
+# Copy project files for restore (paths relative to src/SalesApi)
+COPY ["SalesApi.Presentation/SalesApi.Presentation.csproj", "SalesApi.Presentation/"]
+COPY ["SalesApi.Domain/SalesApi.Domain.csproj", "SalesApi.Domain/"]
+COPY ["SalesApi.Infrastructure/SalesApi.Infrastructure.csproj", "SalesApi.Infrastructure/"]
+COPY ["SalesApi.Application/SalesApi.Application.csproj", "SalesApi.Application/"]
+
+# Restore dependencies
+RUN dotnet restore "SalesApi.Presentation/SalesApi.Presentation.csproj"
+
+# Copy all source code (paths relative to src/SalesApi)
+COPY SalesApi.Presentation/ SalesApi.Presentation/
+COPY SalesApi.Domain/ SalesApi.Domain/
+COPY SalesApi.Infrastructure/ SalesApi.Infrastructure/
+COPY SalesApi.Application/ SalesApi.Application/
+
+WORKDIR "/src/SalesApi.Presentation"
+RUN dotnet build "SalesApi.Presentation.csproj" -c $BUILD_CONFIGURATION -o /app/build
+
+# Publish stage
 FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./SalesApi.Presentation.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "SalesApi.Presentation.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
-# This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
+# Final image stage
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .

@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sales-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sales-api
+  template:
+    metadata:
+      labels:
+        app: sales-api
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.28
+          command: ['sh', '-c', 'until nc -z postgres-db 5432; do echo "Waiting for postgres..."; sleep 2; done;']
+      containers:
+        - name: sales-api
+          image: dyegoalbuquerque/sales-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8090
+          env:
+            - name: ConnectionStrings__DefaultConnection
+              value: "Host=postgres-db;Port=5432;Database=SalesApi;Username=postgres;Password=postgres#2025@"

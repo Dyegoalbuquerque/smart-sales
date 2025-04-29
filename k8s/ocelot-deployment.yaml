@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocelot-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ocelot-gateway
+  template:
+    metadata:
+      labels:
+        app: ocelot-gateway
+    spec:
+      containers:
+        - name: ocelot-gateway
+          image: dyegoalbuquerque/ocelot-gateway:latest
+          ports:
+            - containerPort: 7777
