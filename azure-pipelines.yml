@@ -33,6 +33,13 @@ steps:
     projects: '**/*Tests/*.csproj'
     arguments: '--configuration Release --logger trx'
 
+- task: DotNetCoreCLI@2
+  displayName: 'Run code coverage test'
+  inputs:
+    command: test
+    projects: '**/*Tests.csproj'
+    arguments: '--collect "Code Coverage"'
+
 - task: Docker@2
   displayName: 'Build and Push sales-api Docker image'
   inputs:
