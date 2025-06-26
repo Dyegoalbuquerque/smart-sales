@@ -64,12 +64,3 @@ To run unit tests for the project, navigate to the test project directory (if se
 ```bash
 dotnet test 
 ```
-
-
-
-
-<br>
-<div style="display: flex; justify-content: space-between;">
-  <a href="./general-api.md">Previous: General API</a>
-  <a href="./tech-stack.md">Next: Tech Stack</a>
-</div>

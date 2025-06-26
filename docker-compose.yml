@@ -23,8 +23,8 @@ services:
       context: .
       dockerfile: src/SalesApi/Dockerfile
       args:
-        IMAGE_TAG: ${IMAGE_TAG:-latest}  # tag dinâmica no pipeline
-    image: dyegoalbuquerque/sales-api:${IMAGE_TAG:-latest}  # tag da imagem a ser enviada ao Docker Hub
+        IMAGE_TAG: ${IMAGE_TAG:-latest}
+    image: dyegoalbuquerque/sales-api:${IMAGE_TAG:-latest}
     container_name: sales-api
     depends_on:
       db:
@@ -40,7 +40,7 @@ services:
     build:
       context: .
       dockerfile: src/Gateway/Dockerfile
-    image: dyegoalbuquerque/ocelot-gateway:${IMAGE_TAG:-latest}  # também pronto para push, se desejar
+    image: dyegoalbuquerque/ocelot-gateway:${IMAGE_TAG:-latest}
     container_name: ocelot-gateway
     depends_on:
       sales-api:
@@ -49,6 +49,26 @@ services:
       - "7777:7777"
     environment:
       - ASPNETCORE_URLS=http://+:7777
+    networks:
+      - evaluation-network
+
+  airflow:
+    build:
+      context: ./src/Airflow
+      dockerfile: Dockerfile
+    image: dyegoalbuquerque/airflow-etl:latest
+    container_name: airflow
+    ports:
+      - "8080:8080"
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - SALES_DATA_URL=${SALES_DATA_URL}
+    volumes:
+      - ./src/Airflow/dags:/opt/airflow/dags
+      - ./src/Airflow/logs:/opt/airflow/logs
+      - ./src/Airflow/plugins:/opt/airflow/plugins
+      - ./src/Airflow/requirements.txt:/requirements.txt
     networks:
       - evaluation-network
 

@@ -1,0 +1,31 @@
+# Airflow Providers (AWS, HTTP, SQL, etc.)
+apache-airflow==2.7.1
+apache-airflow-providers-amazon
+apache-airflow-providers-http
+apache-airflow-providers-postgres
+
+# Data Manipulation
+pandas
+polars
+numpy
+
+# HTTP Requests (to fetch remote CSV files)
+requests
+
+# Database Connections
+sqlalchemy
+psycopg2-binary  # PostgreSQL (if used)
+
+# AWS SDK (S3, Athena, Redshift)
+boto3
+
+# Data Validation (Optional but recommended)
+great_expectations
+
+# Environment Variables and Helpers
+python-dotenv
+
+# Optional - Parquet File Support
+pyarrow
+
+pytest
